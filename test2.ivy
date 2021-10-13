@@ -1,0 +1,42 @@
+#lang ivy1.7
+
+# sorts
+type client
+type txn_cnt
+type money
+type id
+
+# interpretations 
+interpret txn_cnt -> bv[2]
+interpret money -> bv[2]
+interpret id -> bv[16]
+
+# state relaltions and functions 
+# client
+function arg_id (C:client) : id
+function arg_amnt (C:client) : money
+function get_cnt(C:client) : txn_cnt
+function get_old_bal(C:client) : money
+
+# bank
+function balances(I:id) : money
+
+
+#
+# actions
+after init {
+    balances(I) := 5;
+}
+
+action do_test(c:client) = {
+  var my_id := arg_id(c);
+  var my_amnt := arg_amnt(c);
+  var cond := balances(my_id) >= my_amnt + 5;
+  if cond {
+    balances(my_id) := balances(my_id) - my_amnt;
+  }
+}
+
+invariant balances(I) >= 5
+
+export do_test

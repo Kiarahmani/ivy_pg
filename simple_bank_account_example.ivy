@@ -1,0 +1,83 @@
+#lang ivy1.7
+
+## Following is an implementation of a very simple banking application in Ivy. 
+## It assumes infinite concurrency and has two transactions: do_read transaction reads the value of a 
+## global sharead variable (balances) and assigns it to the current client's local variable (which is captured by the function get_old_bal).
+## Next, do_dec transaction accesses the value of get_old_bal for the current client and based on its value updates the global balance variable.
+## when the flow between local and global variables are ont restricted; concurrency can cause violations of the desired invariant. 
+## When it is restricted (i.e. by the require statement in do_dec transaction) the invaraint is preserved.
+
+
+
+# sorts
+type client
+type txn_cnt
+type money
+type id
+
+# interpretations 
+interpret txn_cnt -> bv[2]
+interpret money -> nat
+interpret id -> nat
+
+# state relaltions and functions 
+# client
+function arg_id (C:client) : id
+function arg_amnt (C:client) : money
+function get_cnt(C:client) : txn_cnt
+function get_old_bal(C:client) : money
+
+# bank
+function balances(I:id) : money
+
+
+#
+# actions
+after init {
+    get_cnt(C) := 0;
+    balances(I) := 5;
+    get_old_bal(C) := 0
+}
+
+action invoke(c:client, i:id) = {
+  require get_cnt(c) = 0;
+  get_cnt(c) := 1;
+  arg_id(c) := i;
+}
+
+action do_read(c:client) = {
+  require get_cnt(c) = 1;
+  var my_id := arg_id(c);
+  get_old_bal(c) := balances(my_id);
+  get_cnt(c) := 2;
+}
+
+
+action do_dec(c:client) = {
+  require get_cnt(c) = 2;
+  var my_id := arg_id(c);
+  require get_old_bal(c) = balances(my_id);
+  var old_bal := get_old_bal(c);
+  var my_amnt := arg_amnt(c);
+  var cond := old_bal > my_amnt + 5;
+  if cond {
+    balances(my_id) := balances(my_id) - my_amnt;
+  }
+  get_cnt(c) := 3;
+}
+
+
+
+action commit(c:client) = {
+  require get_cnt(c) = 3;
+  get_cnt(c) := 0;
+}
+
+#invariant  get_cnt(C) = 2 -> get_old_bal(C) = balances(arg_id(C))
+invariant balances(I) >= 5
+
+
+export invoke
+export commit
+export do_read
+export do_dec

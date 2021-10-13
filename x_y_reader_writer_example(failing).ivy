@@ -1,0 +1,102 @@
+#lang ivy1.7
+
+# sorts
+type writer
+type reader
+type txn_cnt
+type obj
+
+# interpretations 
+interpret writer -> nat
+interpret reader -> nat
+interpret txn_cnt -> bv[2]
+interpret obj -> nat
+
+# state relaltions and functions 
+# (writer local)
+function writer_cnt (W:writer) : txn_cnt
+function reader_cnt (R:reader) : txn_cnt
+function writer_arg_nval(W:writer) : obj
+
+# (reader local)
+function reader_x(R:reader) : obj
+function reader_y(R:reader) : obj
+
+# (global)
+function global_x : obj
+function global_y : obj
+
+
+# actions
+after init {
+    writer_cnt(C) := 0;
+    reader_cnt(C) := 0;
+    reader_x(R) := 0;
+    reader_y(R) := 0
+}
+
+
+# writer actions
+action invoke_writer(w:writer, arg1:obj) = {
+  require writer_cnt(w) = 0;
+  writer_arg_nval(w) := arg1;
+  writer_cnt(w) := 1;
+}
+
+action do_writer_fst(w:writer) = {
+  require writer_cnt(w) = 1;
+  global_x := writer_arg_nval(w);
+  writer_cnt(w) := 2;
+}
+
+action do_writer_snd(w:writer) = {
+  require writer_cnt(w) = 2;
+  global_y := writer_arg_nval(w);
+  writer_cnt(w) := 3;
+}
+
+action commit_writer(w:writer) = {
+  require writer_cnt(w) = 3;
+  writer_cnt(w) := 0;
+}
+
+
+# reader actions
+action invoke_reader(r:reader) = {
+  require reader_cnt(r) = 0;
+  reader_cnt(r) := 1;
+}
+
+action do_reader_fst(r:reader) = {
+  require reader_cnt(r) = 1;
+  reader_x(r) := global_x;
+  reader_cnt(r) := 2;
+}
+
+action do_reader_snd(r:reader) = {
+  require reader_cnt(r) = 2;
+  reader_y(r) := global_y;
+  reader_cnt(r) := 3;
+}
+
+action commit_reader(r:reader) = {
+  require reader_cnt(r) = 3;
+  reader_cnt(r) := 0;
+}
+
+invariant forall R:reader. reader_x(R) = reader_y(R)
+
+
+
+
+
+# exports to the environment
+export invoke_writer
+export commit_writer
+export do_writer_fst
+export do_writer_snd
+
+export invoke_reader
+export commit_reader
+export do_reader_fst
+export do_reader_snd
