@@ -1,0 +1,123 @@
+#lang ivy1.7
+
+# sorts
+type writer
+type reader
+type txn_cnt
+type obj
+
+# interpretations 
+interpret writer -> nat
+interpret reader -> nat
+interpret txn_cnt -> nat
+interpret obj -> nat
+
+# state relaltions and functions 
+# (writer local)
+function writer_cnt(W:writer) : txn_cnt
+function reader_cnt(R:reader) : txn_cnt
+function writer_arg_nval(W:writer) : obj
+# variables to hold the new values temp.ly and until commit time
+function writer_x(W:writer) : obj
+function writer_y(W:writer) : obj
+
+# (reader local)
+function reader_printed_x(R:reader) : obj
+function reader_printed_y(R:reader) : obj
+
+# locks
+
+
+
+# (global)
+function global_x : obj
+function global_y : obj
+function current_txn_is_read : bool # this helps construct the invariant
+
+
+# actions
+after init {
+    writer_cnt(C) := 0;
+    reader_cnt(C) := 0;
+    reader_printed_x(R) := 0;
+    reader_printed_y(R) := 0;
+    global_x := 0;
+    global_y := 0;
+}
+
+# writer actions
+action invoke_writer(w:writer, arg1:obj) = {
+  require current_txn_is_read = false;
+  require writer_cnt(w) = 0;
+  writer_arg_nval(w) := arg1;
+  writer_cnt(w) := 1;
+}
+
+action do_writer_fst(w:writer) = {
+  require current_txn_is_read = false;
+  require writer_cnt(w) = 1;
+  writer_x(w) := writer_arg_nval(w);
+  writer_cnt(w) := 2;
+}
+
+action do_writer_snd(w:writer) = {
+  require current_txn_is_read = false;
+  require writer_cnt(w) = 2;
+  writer_y(w) := writer_arg_nval(w);
+  writer_cnt(w) := 3;
+}
+
+action commit_writer(w:writer) = {
+  require current_txn_is_read = false;
+  require writer_cnt(w) = 3;
+  global_x := writer_x(w);
+  global_y := writer_y(w);
+  writer_cnt(w) := 0;
+}
+
+# reader actions
+action invoke_reader(r:reader) = {
+  require current_txn_is_read = true;
+  require reader_cnt(r) = 0;
+  reader_cnt(r) := 1;
+}
+
+action do_reader_fst(r:reader) = {
+  require current_txn_is_read = true;
+  require reader_cnt(r) = 1;
+  reader_printed_x(r) := global_x;
+  reader_cnt(r) := 2;
+}
+
+action do_reader_snd(r:reader) = {
+  require current_txn_is_read = true;
+  require reader_cnt(r) = 2;
+  reader_printed_y(r) := global_y;
+  reader_cnt(r) := 3;
+}
+
+action commit_reader(r:reader) = {
+  require current_txn_is_read = true;
+  require reader_cnt(r) = 3;
+  reader_cnt(r) := 4;
+}
+
+invariant forall R:reader. current_txn_is_read -> 
+                  (reader_printed_x(R) = reader_printed_y(R) & 
+                   reader_printed_x(R) = global_x & 
+                   reader_printed_y(R) = global_y)
+
+
+
+
+
+# exports to the environment
+export invoke_writer
+export commit_writer
+export do_writer_fst
+export do_writer_snd
+
+export invoke_reader
+export commit_reader
+export do_reader_fst
+export do_reader_snd
